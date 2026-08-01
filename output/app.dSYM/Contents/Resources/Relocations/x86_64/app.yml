@@ -1,0 +1,18 @@
+---
+triple:          'x86_64-apple-darwin'
+binary-path:     'output/app'
+relocations:
+  - { offsetInCU: 0x26, offset: 0x26, size: 0x8, addend: 0x0, symName: _db_connect, symObjAddr: 0x0, symBinAddr: 0x100002F30, symSize: 0xE0 }
+  - { offsetInCU: 0x5B6, offset: 0x5B6, size: 0x8, addend: 0x0, symName: _db_connect, symObjAddr: 0x0, symBinAddr: 0x100002F30, symSize: 0xE0 }
+  - { offsetInCU: 0x616, offset: 0x616, size: 0x8, addend: 0x0, symName: _db_close, symObjAddr: 0xE0, symBinAddr: 0x100003010, symSize: 0x30 }
+  - { offsetInCU: 0x63A, offset: 0x63A, size: 0x8, addend: 0x0, symName: _db_check_error, symObjAddr: 0x110, symBinAddr: 0x100003040, symSize: 0x5E }
+  - { offsetInCU: 0x26, offset: 0x2710, size: 0x8, addend: 0x0, symName: _clear_input_buffer, symObjAddr: 0x0, symBinAddr: 0x1000030A0, symSize: 0x50 }
+  - { offsetInCU: 0x5B5, offset: 0x2C9F, size: 0x8, addend: 0x0, symName: _clear_input_buffer, symObjAddr: 0x0, symBinAddr: 0x1000030A0, symSize: 0x50 }
+  - { offsetInCU: 0x5D9, offset: 0x2CC3, size: 0x8, addend: 0x0, symName: _main, symObjAddr: 0x50, symBinAddr: 0x1000030F0, symSize: 0x330 }
+  - { offsetInCU: 0x26, offset: 0x4E3C, size: 0x8, addend: 0x0, symName: _init_resource_table, symObjAddr: 0x0, symBinAddr: 0x100003420, symSize: 0x40 }
+  - { offsetInCU: 0x5B6, offset: 0x53CC, size: 0x8, addend: 0x0, symName: _init_resource_table, symObjAddr: 0x0, symBinAddr: 0x100003420, symSize: 0x40 }
+  - { offsetInCU: 0x5F6, offset: 0x540C, size: 0x8, addend: 0x0, symName: _add_resource, symObjAddr: 0x40, symBinAddr: 0x100003460, symSize: 0xE0 }
+  - { offsetInCU: 0x666, offset: 0x547C, size: 0x8, addend: 0x0, symName: _list_resources, symObjAddr: 0x120, symBinAddr: 0x100003540, symSize: 0x230 }
+  - { offsetInCU: 0x6EC, offset: 0x5502, size: 0x8, addend: 0x0, symName: _update_resource_quantity, symObjAddr: 0x350, symBinAddr: 0x100003770, symSize: 0x100 }
+  - { offsetInCU: 0x74D, offset: 0x5563, size: 0x8, addend: 0x0, symName: _delete_resource, symObjAddr: 0x450, symBinAddr: 0x100003870, symSize: 0xE1 }
+...

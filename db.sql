@@ -1,0 +1,12 @@
+CREATE DATABASE IF NOT EXISTS campus_sports;
+USE campus_sports;
+
+CREATE TABLE IF NOT EXISTS sport_resources (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    location VARCHAR(100) NOT NULL,
+    quantity INT NOT NULL DEFAULT 1,
+    available BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

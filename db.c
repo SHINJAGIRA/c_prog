@@ -3,162 +3,201 @@
 #include <stdlib.h>
 #include <string.h>
 
-void db_print_error(MYSQL *conn, const char *context) {
-    fprintf(stderr, "[DB ERROR] %s: %s\n", context, mysql_error(conn));
-}
+/* ============ Connection ============ */
 
-MYSQL* db_connect(const DBConfig *config) {
+MYSQL* db_connect(const char *host, const char *user,
+                  const char *pass, const char *db, unsigned int port) {
     MYSQL *conn = mysql_init(NULL);
-    if (!conn) {
-        fprintf(stderr, "mysql_init() failed\n");
+    if (!conn || !mysql_real_connect(conn, host, user, pass, db, port, NULL, 0)) {
+        fprintf(stderr, "Connect error: %s\n", mysql_error(conn));
         return NULL;
     }
-    
-    if (!mysql_real_connect(conn, config->host, config->user, 
-                            config->password, config->database,
-                            config->port, NULL, 0)) {
-        db_print_error(conn, "Connection failed");
-        mysql_close(conn);
-        return NULL;
-    }
-    
-    printf("Connected to MySQL database: %s\n", config->database);
+    printf("Connected to %s\n", db);
     return conn;
 }
 
 void db_disconnect(MYSQL *conn) {
-    if (conn) {
-        mysql_close(conn);
-        printf("Disconnected from MySQL.\n");
-    }
+    mysql_close(conn);
+    printf("Disconnected.\n");
 }
 
-bool db_create_resource(MYSQL *conn, const SportResource *resource) {
-    char query[512];
-    snprintf(query, sizeof(query),
-        "INSERT INTO sport_resources (name, category, location, quantity, available) "
-        "VALUES ('%s', '%s', '%s', %d, %d)",
-        resource->name, resource->category, resource->location,
-        resource->quantity, resource->available ? 1 : 0);
-    
-    if (mysql_query(conn, query)) {
-        db_print_error(conn, "INSERT failed");
-        return false;
+/* ============ Table Setup ============ */
+
+void db_ensure_tables(MYSQL *conn) {
+    /* Users table */
+    mysql_query(conn,
+        "CREATE TABLE IF NOT EXISTS users ("
+        "id INT AUTO_INCREMENT PRIMARY KEY,"
+        "username VARCHAR(50) UNIQUE NOT NULL,"
+        "password VARCHAR(50) NOT NULL,"
+        "is_admin BOOLEAN DEFAULT FALSE,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")");
+
+    /* Insert defaults if empty */
+    mysql_query(conn, "SELECT COUNT(*) FROM users");
+    MYSQL_RES *res = mysql_store_result(conn);
+    MYSQL_ROW row = mysql_fetch_row(res);
+    if (atoi(row[0]) == 0) {
+        mysql_query(conn,
+            "INSERT INTO users (username, password, is_admin) VALUES "
+            "('admin', 'admin123', 1),"
+            "('user', 'user123', 0)");
+        printf("Default users: admin/admin123, user/user123\n");
     }
-    return true;
+    mysql_free_result(res);
+
+    /* Sport resources table */
+    mysql_query(conn,
+        "CREATE TABLE IF NOT EXISTS sport_resources ("
+        "id INT AUTO_INCREMENT PRIMARY KEY,"
+        "name VARCHAR(100) NOT NULL,"
+        "category VARCHAR(50) NOT NULL,"
+        "location VARCHAR(100) NOT NULL,"
+        "quantity INT NOT NULL DEFAULT 1,"
+        "available BOOLEAN NOT NULL DEFAULT TRUE,"
+        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
+        ")");
 }
 
-bool db_get_all_resources(MYSQL *conn, ResourceList *out_list) {
-    resource_list_init(out_list);
+/* ============ Resource CRUD ============ */
+
+int db_create_resource(MYSQL *conn, Resource *r) {
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+        "INSERT INTO sport_resources(name,category,location,quantity,available) "
+        "VALUES('%s','%s','%s',%d,%d)",
+        r->name, r->category, r->location, r->quantity, r->available);
     
-    if (mysql_query(conn, "SELECT id, name, category, location, quantity, available, created_at FROM sport_resources")) {
-        db_print_error(conn, "SELECT all failed");
-        return false;
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Create error: %s\n", mysql_error(conn));
+        return 0;
+    }
+    return (int)mysql_insert_id(conn);
+}
+
+int db_read_all_resources(MYSQL *conn, ResourceArray *out) {
+    array_init(out);
+    
+    if (mysql_query(conn, "SELECT id,name,category,location,quantity,available FROM sport_resources")) {
+        fprintf(stderr, "Read error: %s\n", mysql_error(conn));
+        return 0;
     }
     
-    MYSQL_RES *result = mysql_store_result(conn);
-    if (!result) {
-        db_print_error(conn, "mysql_store_result failed");
-        return false;
-    }
-    
+    MYSQL_RES *res = mysql_store_result(conn);
     MYSQL_ROW row;
-    while ((row = mysql_fetch_row(result))) {
-        if (!resource_list_ensure_capacity(out_list, out_list->count + 1)) {
-            fprintf(stderr, "Memory allocation failed\n");
-            mysql_free_result(result);
-            resource_list_free(out_list);
-            return false;
+    while ((row = mysql_fetch_row(res))) {
+        Resource r;
+        r.id = atoi(row[0]);
+        strcpy(r.name, row[1]);
+        strcpy(r.category, row[2]);
+        strcpy(r.location, row[3]);
+        r.quantity = atoi(row[4]);
+        r.available = atoi(row[5]);
+        if (!array_push(out, &r)) {
+            fprintf(stderr, "Out of memory\n");
+            array_free(out);
+            mysql_free_result(res);
+            return 0;
         }
-        
-        SportResource *r = &out_list->items[out_list->count++];
-        r->id = atoi(row[0]);
-        strncpy(r->name, row[1], sizeof(r->name) - 1);
-        r->name[sizeof(r->name) - 1] = '\0';
-        strncpy(r->category, row[2], sizeof(r->category) - 1);
-        r->category[sizeof(r->category) - 1] = '\0';
-        strncpy(r->location, row[3], sizeof(r->location) - 1);
-        r->location[sizeof(r->location) - 1] = '\0';
-        r->quantity = atoi(row[4]);
-        r->available = atoi(row[5]) ? true : false;
-        strncpy(r->created_at, row[6], sizeof(r->created_at) - 1);
-        r->created_at[sizeof(r->created_at) - 1] = '\0';
     }
-    
-    mysql_free_result(result);
-    return true;
+    mysql_free_result(res);
+    return 1;
 }
 
-bool db_get_resource_by_id(MYSQL *conn, int id, SportResource *out) {
-    char query[256];
-    snprintf(query, sizeof(query),
-        "SELECT id, name, category, location, quantity, available, created_at "
-        "FROM sport_resources WHERE id = %d", id);
+int db_read_one_resource(MYSQL *conn, int id, Resource *out) {
+    char sql[256];
+    snprintf(sql, sizeof(sql),
+        "SELECT id,name,category,location,quantity,available FROM sport_resources WHERE id=%d", id);
     
-    if (mysql_query(conn, query)) {
-        db_print_error(conn, "SELECT by ID failed");
-        return false;
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Read error: %s\n", mysql_error(conn));
+        return 0;
     }
     
-    MYSQL_RES *result = mysql_store_result(conn);
-    if (!result) return false;
-    
-    MYSQL_ROW row = mysql_fetch_row(result);
+    MYSQL_RES *res = mysql_store_result(conn);
+    MYSQL_ROW row = mysql_fetch_row(res);
     if (!row) {
-        mysql_free_result(result);
-        return false;
+        mysql_free_result(res);
+        return 0;
     }
     
     out->id = atoi(row[0]);
-    strncpy(out->name, row[1], sizeof(out->name) - 1);
-    out->name[sizeof(out->name) - 1] = '\0';
-    strncpy(out->category, row[2], sizeof(out->category) - 1);
-    out->category[sizeof(out->category) - 1] = '\0';
-    strncpy(out->location, row[3], sizeof(out->location) - 1);
-    out->location[sizeof(out->location) - 1] = '\0';
+    strcpy(out->name, row[1]);
+    strcpy(out->category, row[2]);
+    strcpy(out->location, row[3]);
     out->quantity = atoi(row[4]);
-    out->available = atoi(row[5]) ? true : false;
-    strncpy(out->created_at, row[6], sizeof(out->created_at) - 1);
-    out->created_at[sizeof(out->created_at) - 1] = '\0';
+    out->available = atoi(row[5]);
     
-    mysql_free_result(result);
-    return true;
+    mysql_free_result(res);
+    return 1;
 }
 
-bool db_update_resource(MYSQL *conn, int id, const SportResource *resource) {
-    char query[512];
-    snprintf(query, sizeof(query),
-        "UPDATE sport_resources SET "
-        "name = '%s', category = '%s', location = '%s', "
-        "quantity = %d, available = %d "
-        "WHERE id = %d",
-        resource->name, resource->category, resource->location,
-        resource->quantity, resource->available ? 1 : 0, id);
+int db_update_resource(MYSQL *conn, int id, Resource *r) {
+    char sql[512];
+    snprintf(sql, sizeof(sql),
+        "UPDATE sport_resources SET name='%s',category='%s',location='%s',quantity=%d,available=%d WHERE id=%d",
+        r->name, r->category, r->location, r->quantity, r->available, id);
     
-    if (mysql_query(conn, query)) {
-        db_print_error(conn, "UPDATE failed");
-        return false;
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Update error: %s\n", mysql_error(conn));
+        return 0;
     }
-    
-    if (mysql_affected_rows(conn) == 0) {
-        fprintf(stderr, "No resource found with ID %d\n", id);
-        return false;
-    }
-    return true;
+    return mysql_affected_rows(conn) > 0;
 }
 
-bool db_delete_resource(MYSQL *conn, int id) {
-    char query[128];
-    snprintf(query, sizeof(query), "DELETE FROM sport_resources WHERE id = %d", id);
+int db_delete_resource(MYSQL *conn, int id) {
+    char sql[128];
+    snprintf(sql, sizeof(sql), "DELETE FROM sport_resources WHERE id=%d", id);
     
-    if (mysql_query(conn, query)) {
-        db_print_error(conn, "DELETE failed");
-        return false;
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Delete error: %s\n", mysql_error(conn));
+        return 0;
+    }
+    return mysql_affected_rows(conn) > 0;
+}
+
+/* ============ Auth ============ */
+
+User current_user = {0};
+
+int db_login(MYSQL *conn, const char *username, const char *password) {
+    char sql[256];
+    snprintf(sql, sizeof(sql),
+        "SELECT id, username, is_admin FROM users "
+        "WHERE username='%s' AND password='%s'",
+        username, password);
+    
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Login error: %s\n", mysql_error(conn));
+        return 0;
     }
     
-    if (mysql_affected_rows(conn) == 0) {
-        fprintf(stderr, "No resource found with ID %d\n", id);
-        return false;
+    MYSQL_RES *res = mysql_store_result(conn);
+    MYSQL_ROW row = mysql_fetch_row(res);
+    
+    if (!row) {
+        mysql_free_result(res);
+        return 0;
     }
-    return true;
+    
+    current_user.id = atoi(row[0]);
+    strcpy(current_user.username, row[1]);
+    current_user.is_admin = atoi(row[2]);
+    
+    mysql_free_result(res);
+    return 1;
+}
+
+int db_register_user(MYSQL *conn, const char *username, const char *password, int is_admin) {
+    char sql[256];
+    snprintf(sql, sizeof(sql),
+        "INSERT INTO users (username, password, is_admin) VALUES ('%s', '%s', %d)",
+        username, password, is_admin);
+    
+    if (mysql_query(conn, sql)) {
+        fprintf(stderr, "Register error: %s\n", mysql_error(conn));
+        return 0;
+    }
+    return 1;
 }

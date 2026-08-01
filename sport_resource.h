@@ -1,32 +1,39 @@
 #ifndef SPORT_RESOURCE_H
 #define SPORT_RESOURCE_H
 
-#include <stdbool.h>
+/* ============ Resource Entity ============ */
 
 typedef struct {
     int id;
-    char name[101];
-    char category[51];
-    char location[101];
+    char name[100];
+    char category[50];
+    char location[100];
     int quantity;
-    bool available;
-    char created_at[20];
-} SportResource;
+    int available;
+} Resource;
 
-// Dynamic array for storing multiple resources
+/* ============ Dynamic Array ============ */
+
 typedef struct {
-    SportResource *items;
-    size_t count;
-    size_t capacity;
-} ResourceList;
+    Resource *data;
+    int count;
+    int capacity;
+} ResourceArray;
 
-// Initialize an empty resource list
-void resource_list_init(ResourceList *list);
+void array_init(ResourceArray *arr);
+void array_free(ResourceArray *arr);
+int array_push(ResourceArray *arr, Resource *r);
 
-// Free memory allocated for the list
-void resource_list_free(ResourceList *list);
+/* ============ User Entity ============ */
 
-// Ensure capacity for at least `min_capacity` elements
-bool resource_list_ensure_capacity(ResourceList *list, size_t min_capacity);
+typedef struct {
+    int id;
+    char username[50];
+    char password[50];
+    int is_admin;
+} User;
+
+/* Global current user (defined in auth.c) */
+extern User current_user;
 
 #endif

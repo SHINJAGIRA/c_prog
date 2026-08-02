@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "C/C++ Runner: Debug Session",
+      "type": "lldb",
+      "request": "launch",
+      "args": [],
+      "cwd": "/Users/shxma/Documents/c prog/project/mysql_project",
+      "program": "/Users/shxma/Documents/c prog/project/mysql_project/build/Debug/outDebug"
+    }
+  ]
+}

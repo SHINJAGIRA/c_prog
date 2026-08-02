@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: campus_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: campus123
+      MYSQL_DATABASE: campus_sports
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pcampus123"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    container_name: campus_app
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_USER: root
+      DB_PASS: campus123
+      DB_NAME: campus_sports
+      DB_PORT: 3306
+    stdin_open: true
+    tty: true
+    command: >
+      sh -c "
+        echo 'Waiting for MySQL...' &&
+        sleep 5 &&
+        ./campus_sports
+      "
+
+volumes:
+  mysql_data:

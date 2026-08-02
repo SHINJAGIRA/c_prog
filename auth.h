@@ -1,7 +1,7 @@
 #ifndef AUTH_H
 #define AUTH_H
 
-#include <mysql/mysql.h>
+#include <mysql.h>
 
 /* Login screen, returns 1 on success, 0 to exit */
 int auth_login_screen(MYSQL *conn);

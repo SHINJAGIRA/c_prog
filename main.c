@@ -8,11 +8,11 @@
 
 Resource input_resource(void) {
     Resource r = {0};
-    printf("Name: ");      scanf(" %99[^\n]", r.name);
-    printf("Category: ");  scanf(" %49[^\n]", r.category);
-    printf("Location: ");  scanf(" %99[^\n]", r.location);
-    printf("Quantity: ");  scanf("%d", &r.quantity);
-    printf("Available (1=yes, 0=no): "); scanf("%d", &r.available);
+    printf("Enter Resource Name (e.g., Basketball): ");      scanf(" %99[^\n]", r.name);
+    printf("Enter Category (e.g., Ball, Net): ");  scanf(" %49[^\n]", r.category);
+    printf("Enter Location (e.g., Gym A): ");  scanf(" %99[^\n]", r.location);
+    printf("Enter Quantity: ");  scanf("%d", &r.quantity);
+    printf("Is it currently available? (1 for Yes, 0 for No): "); scanf("%d", &r.available);
     return r;
 }
 
@@ -42,9 +42,9 @@ void print_menu(void) {
 /* ============ Main ============ */
 
 int main() {
-    const char *DB_HOST = "localhost";
+    const char *DB_HOST = "mysql";  // Docker service name, NOT localhost
     const char *DB_USER = "root";
-    const char *DB_PASS = "your_password";
+    const char *DB_PASS = "campus123";
     const char *DB_NAME = "campus_sports";
     unsigned int DB_PORT = 3306;
 

@@ -1,0 +1,394 @@
+
+================================================================================
+                    PSEUDOCODE - Campus Sport Resources
+              MySQL C API CRUD Application with User Authentication
+================================================================================
+
+------------------------------------------------------------------------------
+1. main() FUNCTION - Entire Program Flow
+------------------------------------------------------------------------------
+
+FUNCTION main()
+
+    // --- INITIALIZATION ---
+    DECLARE mysql_connection AS MYSQL pointer
+    DECLARE current_user AS User structure
+    DECLARE choice AS integer
+    DECLARE logged_in AS boolean = FALSE
+
+    PRINT "========================================"
+    PRINT "  Campus Sport Resources Manager"
+    PRINT "========================================"
+
+    // Initialize MySQL connection
+    SET mysql_connection = mysql_init(NULL)
+    IF mysql_connection IS NULL THEN
+        PRINT "Error: Failed to initialize MySQL"
+        EXIT program with error code 1
+    END IF
+
+    // Connect to database
+    CALL db_connect(mysql_connection, "localhost", "user", "password", "campus_db")
+    IF connection failed THEN
+        PRINT "Error: Cannot connect to database"
+        EXIT program with error code 1
+    END IF
+
+    // Ensure tables exist
+    CALL db_ensure_tables(mysql_connection)
+
+    // --- AUTHENTICATION LOOP ---
+    DO
+        CALL auth_login_screen(mysql_connection, current_user, logged_in)
+    WHILE logged_in IS FALSE
+
+    // --- MAIN MENU LOOP ---
+    DO
+        PRINT "
+=== MAIN MENU ==="
+        PRINT "1. Create Resource"
+        PRINT "2. View All Resources"
+        PRINT "3. View One Resource"
+        PRINT "4. Update Resource"
+        PRINT "5. Delete Resource"
+
+        IF auth_is_admin(current_user) THEN
+            PRINT "6. Register New User"
+        END IF
+
+        PRINT "0. Logout"
+        PRINT "Choice: "
+        READ choice from keyboard
+
+        SWITCH choice
+            CASE 1:
+                CALL db_create_resource(mysql_connection)
+                BREAK
+            CASE 2:
+                SET resource_array = CALL db_read_all_resources(mysql_connection)
+                CALL display_all_resources(resource_array)
+                CALL array_free(resource_array)
+                BREAK
+            CASE 3:
+                PRINT "Enter Resource ID: "
+                READ resource_id
+                SET resource = CALL db_read_one_resource(mysql_connection, resource_id)
+                IF resource IS NOT NULL THEN
+                    CALL display_resource(resource)
+                ELSE
+                    PRINT "Resource not found"
+                END IF
+                BREAK
+            CASE 4:
+                CALL db_update_resource(mysql_connection)
+                BREAK
+            CASE 5:
+                CALL db_delete_resource(mysql_connection)
+                BREAK
+            CASE 6:
+                IF auth_is_admin(current_user) THEN
+                    CALL db_register_user(mysql_connection)
+                ELSE
+                    PRINT "Access denied: Admin only"
+                END IF
+                BREAK
+            CASE 0:
+                PRINT "Logging out..."
+                SET logged_in = FALSE
+                BREAK
+            DEFAULT:
+                PRINT "Invalid choice. Please try again."
+        END SWITCH
+
+    WHILE logged_in IS TRUE
+
+    // --- CLEANUP ---
+    CALL db_disconnect(mysql_connection)
+    PRINT "Goodbye!"
+
+    RETURN 0
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+2. auth_login_screen() FUNCTION
+------------------------------------------------------------------------------
+
+FUNCTION auth_login_screen(connection, current_user, logged_in)
+
+    DECLARE username AS string[50]
+    DECLARE password AS string[50]
+    DECLARE choice AS integer
+    DECLARE user AS User pointer
+
+    DO
+        PRINT "
+=== AUTHENTICATION ==="
+        PRINT "1. Login"
+        PRINT "2. Exit"
+        PRINT "Choice: "
+        READ choice from keyboard
+
+        IF choice == 2 THEN
+            PRINT "Exiting program..."
+            EXIT program with code 0
+        ELSE IF choice == 1 THEN
+
+            // Input credentials
+            PRINT "Username: "
+            READ username from keyboard
+            PRINT "Password: "
+            READ password from keyboard
+
+            // Validate against database
+            SET user = CALL db_login(connection, username, password)
+
+            IF user IS NOT NULL THEN
+                // Login successful
+                COPY user INTO current_user
+                SET logged_in = TRUE
+                PRINT "Login successful! Welcome, " + current_user.username
+
+                IF auth_is_admin(current_user) THEN
+                    PRINT "[Admin privileges granted]"
+                ELSE
+                    PRINT "[User privileges]"
+                END IF
+
+                RETURN
+            ELSE
+                // Login failed
+                PRINT "Error: Invalid username or password"
+                PRINT "Please try again.
+"
+            END IF
+
+        ELSE
+            PRINT "Invalid choice. Please enter 1 or 2."
+        END IF
+
+    WHILE logged_in IS FALSE
+
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+3. db_create_resource() FUNCTION
+------------------------------------------------------------------------------
+
+FUNCTION db_create_resource(connection)
+
+    DECLARE resource AS Resource structure
+    DECLARE query AS string[512]
+    DECLARE result AS integer
+
+    // Input all resource fields
+    PRINT "
+=== CREATE NEW RESOURCE ==="
+
+    PRINT "Enter Resource Name: "
+    READ resource.name from keyboard
+
+    PRINT "Enter Category: "
+    READ resource.category from keyboard
+
+    PRINT "Enter Location: "
+    READ resource.location from keyboard
+
+    PRINT "Enter Quantity: "
+    READ resource.quantity from keyboard
+
+    PRINT "Enter Available (1=Yes, 0=No): "
+    READ resource.available from keyboard
+
+    // Build INSERT SQL statement
+    SET query = "INSERT INTO sport_resources (name, category, location, quantity, available) "
+    SET query = query + "VALUES ('" + resource.name + "', "
+    SET query = query + "'" + resource.category + "', "
+    SET query = query + "'" + resource.location + "', "
+    SET query = query + resource.quantity + ", "
+    SET query = query + resource.available + ")"
+
+    // Execute the query
+    SET result = mysql_query(connection, query)
+
+    IF result == 0 THEN
+        // Success
+        SET new_id = mysql_insert_id(connection)
+        PRINT "Success: Resource created with ID = " + new_id
+    ELSE
+        // Failure
+        PRINT "Error: Failed to create resource"
+        PRINT mysql_error(connection)
+    END IF
+
+    RETURN
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+4. db_read_all_resources() FUNCTION
+------------------------------------------------------------------------------
+
+FUNCTION db_read_all_resources(connection) RETURNS ResourceArray pointer
+
+    DECLARE arr AS ResourceArray pointer
+    DECLARE result AS MYSQL_RES pointer
+    DECLARE row AS MYSQL_ROW
+    DECLARE query AS string = "SELECT * FROM sport_resources"
+
+    // Initialize dynamic array
+    SET arr = CALL array_init(initial_capacity = 4)
+    IF arr IS NULL THEN
+        RETURN NULL
+    END IF
+
+    // Execute SELECT query
+    IF mysql_query(connection, query) != 0 THEN
+        PRINT "Error: Query failed"
+        PRINT mysql_error(connection)
+        CALL array_free(arr)
+        RETURN NULL
+    END IF
+
+    // Store result set
+    SET result = mysql_store_result(connection)
+    IF result IS NULL THEN
+        PRINT "Error: Failed to store result"
+        CALL array_free(arr)
+        RETURN NULL
+    END IF
+
+    // Fetch each row
+    SET row = mysql_fetch_row(result)
+    WHILE row IS NOT NULL DO
+
+        // Ensure capacity before adding
+        IF arr->count >= arr->capacity THEN
+            // Double the capacity
+            SET new_capacity = arr->capacity * 2
+            SET new_data = realloc(arr->data, new_capacity * sizeof(Resource))
+            IF new_data IS NULL THEN
+                PRINT "Error: Memory allocation failed"
+                mysql_free_result(result)
+                CALL array_free(arr)
+                RETURN NULL
+            END IF
+            SET arr->data = new_data
+            SET arr->capacity = new_capacity
+        END IF
+
+        // Parse row data into Resource structure
+        SET arr->data[arr->count].id = atoi(row[0])
+        SET arr->data[arr->count].name = row[1]
+        SET arr->data[arr->count].category = row[2]
+        SET arr->data[arr->count].location = row[3]
+        SET arr->data[arr->count].quantity = atoi(row[4])
+        SET arr->data[arr->count].available = atoi(row[5])
+
+        // Increment count
+        SET arr->count = arr->count + 1
+
+        // Fetch next row
+        SET row = mysql_fetch_row(result)
+
+    END WHILE
+
+    // Free result set
+    mysql_free_result(result)
+
+    PRINT "Loaded " + arr->count + " resources from database"
+
+    RETURN arr
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+5. array_push() FUNCTION - Dynamic Array Growth
+------------------------------------------------------------------------------
+
+FUNCTION array_push(arr, resource) RETURNS integer
+
+    // arr is a pointer to ResourceArray
+    // resource is a Resource structure to add
+
+    // Check if array needs to grow
+    IF arr->count >= arr->capacity THEN
+
+        // Calculate new capacity (double)
+        SET new_capacity = arr->capacity * 2
+
+        // Reallocate memory
+        SET new_data = realloc(arr->data, new_capacity * sizeof(Resource))
+
+        IF new_data IS NULL THEN
+            PRINT "Error: Failed to reallocate memory"
+            RETURN -1  // Failure
+        END IF
+
+        // Update array properties
+        SET arr->data = new_data
+        SET arr->capacity = new_capacity
+
+        PRINT "Array grown: capacity = " + arr->capacity
+    END IF
+
+    // Copy resource into array at current count position
+    COPY resource INTO arr->data[arr->count]
+
+    // Increment count
+    SET arr->count = arr->count + 1
+
+    RETURN 0  // Success
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+6. array_init() FUNCTION (Helper)
+------------------------------------------------------------------------------
+
+FUNCTION array_init(initial_capacity) RETURNS ResourceArray pointer
+
+    DECLARE arr AS ResourceArray pointer
+
+    // Allocate memory for the array structure
+    SET arr = malloc(sizeof(ResourceArray))
+    IF arr IS NULL THEN
+        RETURN NULL
+    END IF
+
+    // Allocate memory for the data array
+    SET arr->data = malloc(initial_capacity * sizeof(Resource))
+    IF arr->data IS NULL THEN
+        free(arr)
+        RETURN NULL
+    END IF
+
+    // Initialize properties
+    SET arr->count = 0
+    SET arr->capacity = initial_capacity
+
+    RETURN arr
+END FUNCTION
+
+
+------------------------------------------------------------------------------
+7. array_free() FUNCTION (Helper)
+------------------------------------------------------------------------------
+
+FUNCTION array_free(arr)
+
+    IF arr IS NOT NULL THEN
+        IF arr->data IS NOT NULL THEN
+            free(arr->data)
+            SET arr->data = NULL
+        END IF
+        free(arr)
+    END IF
+
+END FUNCTION
+
+
+================================================================================
+                              END OF PSEUDOCODE
+================================================================================

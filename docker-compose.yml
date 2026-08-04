@@ -20,6 +20,8 @@ services:
   app:
     build: .
     container_name: campus_app
+    stdin_open: true
+    tty: true
     depends_on:
       mysql:
         condition: service_healthy
@@ -29,12 +31,13 @@ services:
       DB_PASS: campus123
       DB_NAME: campus_sports
       DB_PORT: 3306
-    stdin_open: true
-    tty: true
+    volumes:
+      - ./:/app
     command: >
       sh -c "
         echo 'Waiting for MySQL...' &&
         sleep 5 &&
+        make CFLAGS=\"-Wall -Wextra -g -I/usr/include/mysql\" &&
         ./campus_sports
       "
 

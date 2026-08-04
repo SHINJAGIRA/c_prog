@@ -42,6 +42,7 @@ void print_menu(void) {
 /* ============ Main ============ */
 
 int main() {
+    setvbuf(stdout,NULL,_IONBF,0);
     const char *DB_HOST = "mysql";  // Docker service name, NOT localhost
     const char *DB_USER = "root";
     const char *DB_PASS = "campus123";
